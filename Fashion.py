@@ -31,18 +31,22 @@ with col2:
 with col3:
     user_design = st.file_uploader("Upload Your Design", type=["png", "jpg", "jpeg"])
 
-# Drawing Canvas
-st.subheader("🖌️ Draw a Silhouette")
-canvas_result = st_canvas(
-    fill_color="rgba(255, 255, 255, 0.3)",
-    stroke_width=2,
-    stroke_color="#000000",
-    background_color="#ffffff",
-    height=400,
-    width=400,
-    drawing_mode="freedraw",
-    key="canvas"
-)
+# Optional Drawing Canvas
+st.subheader("🖌️ (Optional) Draw a Silhouette")
+draw_toggle = st.checkbox("Enable Drawing Canvas")
+
+canvas_result = None
+if draw_toggle:
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 255, 255, 0.3)",
+        stroke_width=2,
+        stroke_color="#000000",
+        background_color="#ffffff",
+        height=400,
+        width=400,
+        drawing_mode="freedraw",
+        key="canvas"
+    )
 
 # Show uploaded/drawn images
 st.markdown("---")
@@ -53,7 +57,7 @@ if fabric_swatch:
     st.image(fabric_swatch, caption="Fabric Swatch", use_column_width=True)
 if user_design:
     st.image(user_design, caption="User Design", use_column_width=True)
-if canvas_result.image_data is not None:
+if canvas_result and canvas_result.image_data is not None:
     st.image(canvas_result.image_data, caption="Drawn Silhouette", use_column_width=True)
 
 # Prompt builder
