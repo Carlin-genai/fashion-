@@ -1,36 +1,41 @@
 import streamlit as st
-from PIL import Image
-from io import BytesIO
-import base64
-import requests
 from streamlit_drawable_canvas import st_canvas
+from PIL import Image
+import requests
+import os
+import io
 
-# Set page config
-st.set_page_config(page_title="AI Fashion Silhouette & Design Studio", layout="wide")
-st.title("👗 AI Fashion Silhouette & Design Studio")
-st.markdown("Draw it. Upload it. Imagine it. Let AI bring it to life!")
+# Set page configuration
+st.set_page_config(page_title="AI Fashion Design Generator", layout="wide")
+st.title("👗 AI Fashion Silhouette & Outfit Designer")
+st.caption("Draw, Upload, and Let AI Generate Stunning Outfit Designs")
 
-# --- Sidebar Design Inputs ---
-st.sidebar.header("🎨 Design Inputs")
-outfit_type = st.sidebar.selectbox("Outfit Type", ["Fusion Ethnic", "Evening Gown", "Streetwear", "Casual", "Couture", "Formal"])
-season = st.sidebar.selectbox("Season", ["Summer", "Winter", "All-season"])
-fabric = st.sidebar.text_input("Preferred Fabrics")
-elements = st.sidebar.text_area("Design Elements")
-principles = st.sidebar.multiselect("Design Principles", ["Balance", "Rhythm", "Emphasis", "Contrast", "Proportion", "Unity"])
-color = st.sidebar.color_picker("Base Color")
-st.sidebar.markdown("---")
+# Sidebar inputs
+st.sidebar.header("🪡 Design Parameters")
+style = st.sidebar.selectbox("Outfit Style", ["Fusion Ethnic", "Boho Chic", "Minimalist Formal", "Runway Couture", "Casual Streetwear"])
+season = st.sidebar.selectbox("Season", ["Spring", "Summer", "Fall", "Winter", "All-Season"])
+fabrics = st.sidebar.text_input("Preferred Fabrics", "Chanderi, Organza, Cotton")
+elements = st.sidebar.text_area("Design Elements", "Asymmetry, ruffles, slit, pleats")
+design_principles = st.sidebar.multiselect("Design Principles", ["Balance", "Rhythm", "Contrast", "Emphasis", "Unity", "Proportion"], default=["Balance", "Emphasis"])
+colors = st.sidebar.text_input("Color Preferences", "Peach, Mint Green, Off-white")
+trend_palette = st.sidebar.text_input("Trending Palette Notes", "Pantone 2025 - Peach Fuzz, Soft Blue")
+ai_review = st.sidebar.text_area("AI Critique Suggestion (Optional)", "Add layering for depth and use lighter fabrics for summer appeal")
 
-# --- Image Upload ---
-st.subheader("📸 Upload References")
-ref_image = st.file_uploader("Upload a reference/silhouette image", type=["jpg", "jpeg", "png"])
-design_asset = st.file_uploader("Upload design detail or fabric swatch", type=["jpg", "jpeg", "png"])
-user_design = st.file_uploader("Upload your own design (optional)", type=["jpg", "jpeg", "png"])
+# Uploads
+st.subheader("📤 Upload References (Optional)")
+col1, col2, col3 = st.columns(3)
+with col1:
+    ref_image = st.file_uploader("Upload a Sketch/Reference", type=["png", "jpg", "jpeg"])
+with col2:
+    fabric_swatch = st.file_uploader("Upload Fabric Swatch", type=["png", "jpg", "jpeg"])
+with col3:
+    user_design = st.file_uploader("Upload Your Design", type=["png", "jpg", "jpeg"])
 
-# --- Drawing Canvas ---
-st.subheader("🖌️ Draw Your Silhouette")
+# Drawing Canvas
+st.subheader("🖌️ Draw a Silhouette")
 canvas_result = st_canvas(
-    fill_color="rgba(0, 0, 0, 0.3)",
-    stroke_width=3,
+    fill_color="rgba(255, 255, 255, 0.3)",
+    stroke_width=2,
     stroke_color="#000000",
     background_color="#ffffff",
     height=400,
@@ -39,54 +44,56 @@ canvas_result = st_canvas(
     key="canvas"
 )
 
-# --- Build Prompt Function ---
+# Show uploaded/drawn images
+st.markdown("---")
+st.subheader("📸 Preview Inputs")
+if ref_image:
+    st.image(ref_image, caption="Reference Image", use_column_width=True)
+if fabric_swatch:
+    st.image(fabric_swatch, caption="Fabric Swatch", use_column_width=True)
+if user_design:
+    st.image(user_design, caption="User Design", use_column_width=True)
+if canvas_result.image_data is not None:
+    st.image(canvas_result.image_data, caption="Drawn Silhouette", use_column_width=True)
+
+# Prompt builder
 def generate_prompt():
-    prompt = f"Design a {outfit_type} for {season} using {fabric}. "
-    prompt += f"Include: {elements}. Principles: {', '.join(principles)}. Color: {color}."
+    prompt = f"Design a high-fashion women's outfit using a {style} silhouette suitable for {season}. "
+    prompt += f"Key fabrics: {fabrics}. Include elements such as {elements}. "
+    prompt += f"Use color scheme: {colors} with influence from trend palette: {trend_palette}. "
+    prompt += f"Apply design principles: {', '.join(design_principles)}. "
+    if ai_review:
+        prompt += f"Note: {ai_review} "
+    prompt += "Generate a realistic, high-resolution fashion illustration."
     return prompt
 
-# --- Generate Prompt ---
-if st.button("✨ Generate AI Prompt"):
-    prompt = generate_prompt()
-    st.markdown("### 📝 AI Design Prompt")
-    st.info(prompt)
+# Image generator from Hugging Face
+@st.cache_data(show_spinner=False)
+def generate_fashion_image(prompt):
+    api_token = os.getenv("HUGGINGFACE_TOKEN")
+    if not api_token:
+        st.error("Please set your Hugging Face token in the environment variable 'HUGGINGFACE_TOKEN'")
+        return None
+    url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2"
+    headers = {"Authorization": f"Bearer {api_token}"}
+    payload = {"inputs": prompt}
+    response = requests.post(url, headers=headers, json=payload)
+    if response.status_code == 200:
+        return Image.open(io.BytesIO(response.content))
+    else:
+        st.error(f"API Error: {response.status_code}")
+        return None
 
-    if ref_image:
-        st.image(ref_image, caption="Reference Image", use_column_width=True)
-    if design_asset:
-        st.image(design_asset, caption="Fabric Swatch or Detail", use_column_width=True)
-    if user_design:
-        st.image(user_design, caption="User Uploaded Design", use_column_width=True)
-    if canvas_result.image_data is not None:
-        st.image(canvas_result.image_data, caption="Your Drawing", use_column_width=True)
-
-# --- API Integration Example (Placeholder) ---
-with st.expander("🔗 Generate AI Image (via Hugging Face API)"):
-    st.caption("This section can connect to Hugging Face or Replicate API")
-    if st.button("Simulate API Call"):
-        st.success("🧠 AI image generation simulated. (Replace with actual API call)")
-
-# --- Fabric Recommender ---
-with st.expander("🧵 Fabric Recommender (Experimental)"):
-    st.caption("Upload swatch or texture and get suggestions")
-    if design_asset:
-        st.image(design_asset, width=200)
-        st.markdown("**Suggested Matching Fabrics:**")
-        st.markdown("- Organza with metallic sheen\n- Digital-printed cotton\n- Chikankari georgette")
-
-# --- Color & Trend Analysis ---
-with st.expander("📊 Color & Trend Analysis"):
-    st.markdown("**Suggested Trend-Driven Palettes:**")
-    st.markdown("- Burnt orange + Deep teal\n- Sage green + Champagne\n- Ice blue + Metallic silver")
-    st.caption("Based on current fashion forecasts")
-
-# --- AI Fashion Reviewer ---
-with st.expander("🤖 AI Fashion Reviewer"):
-    st.caption("Upload your design to get AI critique and improvement suggestions")
-    if user_design:
-        st.image(user_design, width=300)
-        st.markdown("**AI Feedback:**")
-        st.markdown("- Add a belt to define the waist\n- Consider adding an asymmetric hem\n- Introduce a layering element for more depth")
+# Generate button
+st.markdown("---")
+if st.button("🎨 Generate Outfit Image"):
+    with st.spinner("Creating fashion artwork with AI..."):
+        final_prompt = generate_prompt()
+        st.markdown("#### 📝 Final Prompt Sent to AI:")
+        st.info(final_prompt)
+        result_image = generate_fashion_image(final_prompt)
+        if result_image:
+            st.image(result_image, caption="👗 AI-Generated Fashion Illustration", use_column_width=True)
 
 st.markdown("---")
-st.caption("Built with ❤️ for the next-gen fashion creators")
+st.caption("Built with 🧠 Streamlit, 🤖 Hugging Face, and your imagination ✨")
